@@ -41,6 +41,7 @@ const { parse } = require('papaparse');
 		'skiprows',
 		'limit',
 		'nocast',
+		'nocastfields',
 		'tagall',
 		'input',
 		'listdelim',
@@ -65,10 +66,12 @@ const { parse } = require('papaparse');
 	if (args.mergevals && !validateFieldValListArgs('mergevals')) return;
 	if (args.dfltvals && !validateFieldValListArgs('dfltvals')) return;
 	if (args.skipfields && !validateFieldValListArgs('skipfields', 1)) return;
+	if (args.nocastfields && !validateFieldValListArgs('nocastfields', 1)) return;
 	if (args.fields && !validateFieldValListArgs('fields', 1)) return;
 	const mergeVals = !args.mergevals ? null : args.mergevals.split(listDelim);
 	const dfltVals = !args.dfltvals ? null : args.dfltvals.split(listDelim);
 	const skipFields = !args.skipfields ? null : args.skipfields.split(listDelim);
+	const nocastfields = !args.nocastfields ? [] : args.nocastfields.split(listDelim);
 	const fieldOverrides = !args.fields ? null : args.fields.split(listDelim);
 	const delim = args.delim == 'tab' || !args.delim ? '\t' : (args.delim == 'com' ? ',' : (args.delim == 'pipe' ? '|' : args.delim));
 	const csvFileName = args.input || 'import.csv';
@@ -187,7 +190,7 @@ const { parse } = require('papaparse');
 					dfltVal = !dfltVals ? null : dfltVals.filter(pair => pair.split('=')[0] == field);
 				if (dfltVal) dfltVal = !dfltVal.length ? null : dfltVal[0].split('=')[1];
 				let val = row[field] || dfltVal;
-				newObj.fields[field] = {...(newObj.fields[field] || {}), [locale]: handleFieldVal(val?.trim ? val.trim() : val)};
+				newObj.fields[field] = {...(newObj.fields[field] || {}), [locale]: handleFieldVal(val?.trim ? val.trim() : val, field)};
 
 			//special _id (existing item) or _tags columns
 			} else if (field == '_tags')
@@ -260,17 +263,18 @@ const { parse } = require('papaparse');
 	}
 
 	//util - do some sort of casting or transformation on value - defers to related utils below
-	function handleFieldVal(val) {
-		return handleLatLng(handleValType(handleRef(val)));
+	function handleFieldVal(val, field) {
+		return handleLatLng(handleValType(handleRef(val), field));
 	}
 
 	//util - handle cast string representations of primitives
-	function handleValType(val) {
-		if (args.nocast) return val;
+	function handleValType(val, field) {
+		if (args.nocast || (field && nocastfields.includes(field))) return val;
 		if (val == 'true') val = true;
 		if (val == 'false') val = false;
 		if (val == 'null') val = null;
-		if (parseFloat(val) && /^\d+(\.\d+)?$/.test(val)) val = parseFloat(val);
+		if (val == 'undefined') val = undefined;
+		if (/^\d+(\.\d+)?$/.test(val) && parseFloat(val)) val = parseFloat(val);
 		return val;
 	}
 
